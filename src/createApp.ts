@@ -11,6 +11,24 @@ import { fileInstallationStore } from "./installationStore.js";
 import { renderLandingHtml } from "./landing.js";
 import { registerHandlers } from "./registerHandlers.js";
 
+function attachPublicRoutes(receiver: ExpressReceiver, oauth: boolean): void {
+  receiver.router.get("/", (_req, res) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.end(renderLandingHtml());
+  });
+
+  receiver.router.get("/health", (_req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        ok: true,
+        mode: oauth ? "oauth" : "single-workspace",
+        appUrl: config.appUrl,
+      })
+    );
+  });
+}
+
 export function createApp(): App {
   const socketMode = isSocketMode();
   const oauth = isOAuthMode();
@@ -18,46 +36,34 @@ export function createApp(): App {
   let receiver: ExpressReceiver | undefined;
 
   if (!socketMode) {
-    receiver = new ExpressReceiver({
-      signingSecret: config.signingSecret,
-      endpoints: "/slack/events",
-      processBeforeResponse: true,
-    });
-
-    receiver.router.get("/", (_req, res) => {
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end(renderLandingHtml());
-    });
-
-    receiver.router.get("/health", (_req, res) => {
-      res.setHeader("Content-Type", "application/json");
-      res.end(
-        JSON.stringify({
-          ok: true,
-          mode: oauth ? "oauth" : "single-workspace",
-          appUrl: config.appUrl,
+    receiver = oauth
+      ? new ExpressReceiver({
+          signingSecret: config.signingSecret,
+          clientId: config.clientId,
+          clientSecret: config.clientSecret,
+          stateSecret: config.stateSecret,
+          scopes: [...config.botScopes],
+          installationStore: fileInstallationStore,
+          endpoints: "/slack/events",
+          processBeforeResponse: true,
+          installerOptions: {
+            directInstall: true,
+            installPath: "/slack/install",
+            redirectUriPath: "/slack/oauth_redirect",
+          },
         })
-      );
-    });
+      : new ExpressReceiver({
+          signingSecret: config.signingSecret,
+          endpoints: "/slack/events",
+          processBeforeResponse: true,
+        });
+
+    attachPublicRoutes(receiver, oauth);
   }
 
+  // OAuth must live on ExpressReceiver (custom receiver ignores App-level clientId/secret).
   const app = oauth
-    ? new App({
-        signingSecret: config.signingSecret,
-        clientId: config.clientId,
-        clientSecret: config.clientSecret,
-        stateSecret: config.stateSecret,
-        scopes: [...config.botScopes],
-        installationStore: fileInstallationStore,
-        installerOptions: {
-          directInstall: true,
-          installPath: "/slack/install",
-          redirectUriPath: "/slack/oauth_redirect",
-        },
-        socketMode,
-        receiver,
-        ...(socketMode ? { appToken: config.appToken } : {}),
-      })
+    ? new App({ receiver })
     : new App({
         token: config.botToken,
         signingSecret: config.signingSecret,
