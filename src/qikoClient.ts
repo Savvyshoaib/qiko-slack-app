@@ -1,0 +1,147 @@
+export interface QikoLoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface QikoUser {
+  id?: number | string;
+  email?: string;
+  user_name?: string;
+  name?: string;
+  agent_unique_id?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+export interface QikoLoginResponse {
+  success?: boolean;
+  message?: string;
+  data?: {
+    token?: string;
+    user?: QikoUser;
+  };
+}
+
+function getBaseUrl(): string {
+  const base = process.env.QIKO_API_BASE_URL?.replace(/\/$/, "");
+  if (!base) {
+    throw new Error("QIKO_API_BASE_URL is not set");
+  }
+  return base;
+}
+
+function extractErrorMessage(data: unknown, fallback: string): string {
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    const message = typeof obj.message === "string" ? obj.message : null;
+    const errors = obj.errors;
+    if (errors && typeof errors === "object") {
+      const first = Object.values(errors as Record<string, unknown>)[0];
+      if (Array.isArray(first) && typeof first[0] === "string") return first[0];
+    }
+    if (message) return message;
+  }
+  return fallback;
+}
+
+export async function loginToQiko(payload: QikoLoginPayload): Promise<QikoLoginResponse> {
+  const res = await fetch(`${getBaseUrl()}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as QikoLoginResponse;
+
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(data, "Login failed"));
+  }
+
+  if (!data?.data?.token) {
+    throw new Error(data?.message || "Login succeeded but no token was returned");
+  }
+
+  return data;
+}
+
+export interface QikoAgent {
+  id: string;
+  agent_unique_id?: string;
+  agent_name?: string;
+  user_name?: string;
+  email?: string;
+  status?: string;
+}
+
+export interface QikoChatPayload {
+  agent_unique_id: string;
+  user_name: string;
+  message: string;
+  email: string;
+}
+
+export async function fetchQikoAgents(token: string): Promise<QikoAgent[]> {
+  const res = await fetch(`${getBaseUrl()}/get-agents`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(data, "Failed to load workers"));
+  }
+
+  if (Array.isArray(data)) return data as QikoAgent[];
+  if (data && typeof data === "object" && Array.isArray((data as { data?: QikoAgent[] }).data)) {
+    return (data as { data: QikoAgent[] }).data;
+  }
+  return [];
+}
+
+export async function chatWithQikoWorker(
+  token: string,
+  agentId: string,
+  payload: QikoChatPayload
+): Promise<string> {
+  const res = await fetch(`${getBaseUrl()}/${encodeURIComponent(agentId)}/chat-with-history`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(data, "Worker did not respond"));
+  }
+
+  const replyFromArray =
+    Array.isArray((data as { data?: unknown[] })?.data) &&
+    (data as { data: { reply?: string }[] }).data[0]?.reply;
+  const replyDirect = (data as { data?: { reply?: string } })?.data?.reply;
+  const reply = replyFromArray || replyDirect;
+  if (typeof reply === "string" && reply.trim()) return reply.trim();
+  throw new Error("Worker returned an empty reply");
+}
+
+export async function fetchQikoProfile(token: string): Promise<QikoUser | null> {
+  const res = await fetch(`${getBaseUrl()}/user/studio`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json().catch(() => null);
+  if (data && typeof data === "object") {
+    return data as QikoUser;
+  }
+  return null;
+}
