@@ -42,6 +42,11 @@ export function validateConfig(): void {
       "Set SLACK_CLIENT_ID + SLACK_CLIENT_SECRET (production) or SLACK_BOT_TOKEN (local dev)"
     );
   }
+  if (isOAuthMode()) {
+    console.log(
+      `OAuth mode: clientId=${config.clientId.slice(0, 8)}… appUrl=${config.appUrl}`
+    );
+  }
   if (!config.qikoApiBaseUrl) {
     console.warn("Warning: QIKO_API_BASE_URL is not set — Qiko login will fail");
   }
