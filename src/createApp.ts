@@ -4,6 +4,7 @@ import {
   installUrl,
   isOAuthMode,
   isSocketMode,
+  oauthRedirectUrl,
   slackEventsUrl,
 } from "./config.js";
 import { fileInstallationStore } from "./installationStore.js";
