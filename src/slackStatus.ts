@@ -63,16 +63,26 @@ export async function resolveStatusThreadTs(
   const anchors = readAnchors();
   if (anchors[key]) return anchors[key];
 
-  const posted = await client.chat.postMessage({
-    channel: channelId,
-    text: `<@${userId}> · _Qiko session_`,
-  });
-  const ts = posted.ts;
-  if (!ts) throw new Error("Could not start Qiko thread in this channel");
+  try {
+    const posted = await client.chat.postMessage({
+      channel: channelId,
+      text: `<@${userId}> · _Qiko session_`,
+    });
+    const ts = posted.ts;
+    if (!ts) throw new Error("Could not start Qiko thread in this channel");
 
-  anchors[key] = ts;
-  writeAnchors(anchors);
-  return ts;
+    anchors[key] = ts;
+    writeAnchors(anchors);
+    return ts;
+  } catch (error) {
+    const err = error as { data?: { error?: string } };
+    if (err.data?.error === "not_in_channel") {
+      throw new Error(
+        "Qiko is not in this channel. Run `/invite @Qiko` here, or use `/qiko-login` in Apps → Qiko (DM)."
+      );
+    }
+    throw error;
+  }
 }
 
 export async function showQikoWorking(

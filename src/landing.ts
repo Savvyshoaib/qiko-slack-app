@@ -24,7 +24,8 @@ export function renderLandingHtml(): string {
   <p>Install Qiko in your Slack workspace. Each person signs in with their own Qiko account.</p>
   ${
     isOAuthMode()
-      ? `<a class="btn" href="${installLink}">Add to Slack</a>`
+      ? `<a class="btn" href="${installLink}">Add to Slack</a>
+  <p class="muted">Use this button only (installs via <code>/slack/install</code>). Do not paste the OAuth redirect URL alone.</p>`
       : `<p class="muted">OAuth not configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the server.</p>`
   }
   <h2>After install</h2>

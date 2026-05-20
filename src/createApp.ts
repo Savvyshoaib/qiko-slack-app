@@ -61,6 +61,26 @@ export function createApp(): App {
             directInstall: true,
             installPath: "/slack/install",
             redirectUriPath: "/slack/oauth_redirect",
+            // Slack "Install App" without /slack/install skips state; PKCE still applies.
+            stateVerification: false,
+            callbackOptions: {
+              success: (_installation, _opts, _req, res) => {
+                res.setHeader("Content-Type", "text/html; charset=utf-8");
+                res.end(`<!DOCTYPE html><html><body style="font-family:system-ui;max-width:520px;margin:48px auto;padding:0 20px">
+<h1>Qiko installed</h1>
+<p>Return to Slack, open <strong>Apps → Qiko</strong>, then run <code>/qiko-login</code>.</p>
+<p>In a channel, invite the bot first: <code>/invite @Qiko</code></p>
+</body></html>`);
+              },
+              failure: (error, _opts, _req, res) => {
+                console.error("OAuth install failed:", error);
+                res.setHeader("Content-Type", "text/html; charset=utf-8");
+                res.status(500).end(`<!DOCTYPE html><html><body style="font-family:system-ui;max-width:520px;margin:48px auto">
+<h1>Install failed</h1>
+<p>Try again from <a href="/slack/install">/slack/install</a> (not the Slack dashboard redirect URL alone).</p>
+</body></html>`);
+              },
+            },
           },
         })
       : new ExpressReceiver({

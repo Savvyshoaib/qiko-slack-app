@@ -113,20 +113,21 @@ export function registerHandlers(app: App): void {
 
   app.command("/qiko-login", async ({ ack, body, client, respond }) => {
     await ack();
-    const threadTs = await resolveStatusThreadTs(
-      client,
-      body.team_id,
-      body.channel_id,
-      body.user_id,
-      body.thread_ts
-    );
-    await showQikoWorking(client, body.channel_id, threadTs);
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: buildLoginModal(),
-    });
-    await clearQikoWorking(client, body.channel_id, threadTs);
-    await replyCommand(respond, "Complete sign-in in the window that opened.");
+    try {
+      await client.views.open({
+        trigger_id: body.trigger_id,
+        view: buildLoginModal(),
+      });
+      await replyCommand(
+        respond,
+        "Complete sign-in in the window that opened. (In channels, invite the bot with `/invite @Qiko` if nothing appears.)"
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not open login window";
+      console.error("/qiko-login error:", error);
+      await replyCommand(respond, message);
+    }
   });
 
   app.command("/qiko-status", async ({ ack, body, client, respond }) => {
