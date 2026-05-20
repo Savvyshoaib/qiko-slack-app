@@ -45,21 +45,41 @@ function extractErrorMessage(data: unknown, fallback: string): string {
 }
 
 export async function loginToQiko(payload: QikoLoginPayload): Promise<QikoLoginResponse> {
-  const res = await fetch(`${getBaseUrl()}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const url = `${getBaseUrl()}/login`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email: payload.email, password: payload.password }),
+    });
+  } catch (error) {
+    console.error("Qiko login network error:", error);
+    throw new Error(
+      "Could not reach Qiko API. Check QIKO_API_BASE_URL on the server (should end with /api/avatar)."
+    );
+  }
 
   const data = (await res.json().catch(() => ({}))) as QikoLoginResponse;
 
-  if (!res.ok) {
-    throw new Error(extractErrorMessage(data, "Login failed"));
+  if (!res.ok || data?.success === false) {
+    const msg = extractErrorMessage(data, "Login failed");
+    console.warn(`Qiko login failed: HTTP ${res.status} — ${msg}`);
+    throw new Error(msg);
   }
 
-  if (!data?.data?.token) {
+  const token =
+    data?.data?.token ??
+    (data?.data as { access_token?: string } | undefined)?.access_token;
+
+  if (!token) {
+    console.warn("Qiko login: success response but no token", JSON.stringify(data).slice(0, 200));
     throw new Error(data?.message || "Login succeeded but no token was returned");
   }
+
+  if (!data.data) data.data = {};
+  data.data.token = token;
 
   return data;
 }

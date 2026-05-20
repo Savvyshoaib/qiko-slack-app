@@ -248,10 +248,11 @@ export function registerHandlers(app: App): void {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
+      console.error("Qiko modal login error:", message);
       await ack({
         response_action: "errors",
         errors: {
-          email_block: message,
+          email_block: message.length > 140 ? `${message.slice(0, 137)}…` : message,
         },
       });
     }

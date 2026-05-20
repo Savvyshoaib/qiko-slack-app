@@ -35,6 +35,9 @@ function attachPublicRoutes(receiver: ExpressReceiver, oauth: boolean): void {
         appUrl: config.appUrl,
         installStore: usePostgresInstallStore() ? "postgres" : "file",
         installations,
+        qikoApi: config.qikoApiBaseUrl
+          ? config.qikoApiBaseUrl.replace(/\/api\/avatar\/?$/, "…/api/avatar")
+          : "not-set",
       })
     );
   });
