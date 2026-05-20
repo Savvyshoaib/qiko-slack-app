@@ -75,7 +75,8 @@ export function createApp(): App {
               failure: (error, _opts, _req, res) => {
                 console.error("OAuth install failed:", error);
                 res.setHeader("Content-Type", "text/html; charset=utf-8");
-                res.status(500).end(`<!DOCTYPE html><html><body style="font-family:system-ui;max-width:520px;margin:48px auto">
+                res.statusCode = 500;
+                res.end(`<!DOCTYPE html><html><body style="font-family:system-ui;max-width:520px;margin:48px auto">
 <h1>Install failed</h1>
 <p>Try again from <a href="/slack/install">/slack/install</a> (not the Slack dashboard redirect URL alone).</p>
 </body></html>`);
