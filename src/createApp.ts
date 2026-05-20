@@ -18,6 +18,7 @@ import {
   renderLandingHtml,
 } from "./landing.js";
 import { registerHandlers } from "./registerHandlers.js";
+import { resolvePostInstallRedirectUrl } from "./slackRedirect.js";
 
 const projectRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const logoFile = path.join(projectRoot, "qiko-logo.png");
@@ -88,9 +89,10 @@ export function createApp(): App {
             // Slack "Install App" without /slack/install skips state; PKCE still applies.
             stateVerification: false,
             callbackOptions: {
-              success: (_installation, _opts, _req, res) => {
+              success: async (installation, _opts, _req, res) => {
+                const redirectUrl = await resolvePostInstallRedirectUrl(installation);
                 res.setHeader("Content-Type", "text/html; charset=utf-8");
-                res.end(renderInstallSuccessHtml());
+                res.end(renderInstallSuccessHtml(redirectUrl));
               },
               failure: (error, _opts, _req, res) => {
                 console.error("OAuth install failed:", error);

@@ -467,20 +467,23 @@ export function renderLandingHtml(): string {
     
 
     <footer>
-      Powered by <a href="${STAGE_SITE}">Qiko</a> </a>
+      Powered by <a href="${STAGE_SITE}">Qiko</a>
     </footer>
   </main>
 </body>
 </html>`;
 }
 
-/** OAuth install success page — matches landing theme. */
-export function renderInstallSuccessHtml(): string {
+/** OAuth install success page — matches landing theme; auto-redirect to Slack. */
+export function renderInstallSuccessHtml(redirectUrl: string): string {
+  const safeHref = esc(redirectUrl);
+  const safeUrlJs = JSON.stringify(redirectUrl);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="5;url=${safeHref}" />
   <title>Qikobot installed</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
@@ -491,6 +494,14 @@ export function renderInstallSuccessHtml(): string {
     p { color: #94a3b8; line-height: 1.6; margin: 0 0 12px; }
     code { background: rgba(30,41,59,.8); padding: 2px 8px; border-radius: 6px; font-size: 0.9em; color: #e2e8f0; }
     strong { color: #f1f5f9; }
+    .redirect { margin-top: 20px; padding-top: 18px; border-top: 1px solid rgba(148,163,184,.12); }
+    .countdown { color: #22d3ee; font-weight: 600; }
+    .btn-open {
+      display: inline-block; margin-top: 14px; padding: 12px 22px; border-radius: 999px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6 42%, #22d3ee);
+      color: #05070a; font-weight: 700; text-decoration: none; font-size: 0.95rem;
+    }
+    .btn-open:hover { opacity: 0.92; }
   </style>
 </head>
 <body>
@@ -499,8 +510,27 @@ export function renderInstallSuccessHtml(): string {
     <p>In Slack: <strong>Apps</strong> → <strong>Qikobot</strong> → <strong>Messages</strong> tab to chat.</p>
     <p>Run <code>/qiko-login</code> and sign in with your Qiko email and password.</p>
     <p>In a channel: <code>/invite @Qikobot</code> first if commands need the bot in that channel.</p>
-    <p style="font-size:0.85rem;margin-top:16px">Use the same password as the Qiko web app (check for typos).</p>
+    <p style="font-size:0.85rem">Use the same password as the Qiko web app (check for typos).</p>
+    <div class="redirect">
+      <p>Opening Slack in <span class="countdown" id="countdown">5</span> seconds…</p>
+      <a class="btn-open" href="${safeHref}">Open Slack now</a>
+    </div>
   </div>
+  <script>
+    (function () {
+      var url = ${safeUrlJs};
+      var left = 5;
+      var el = document.getElementById("countdown");
+      var tick = setInterval(function () {
+        left -= 1;
+        if (el) el.textContent = String(left);
+        if (left <= 0) {
+          clearInterval(tick);
+          window.location.replace(url);
+        }
+      }, 1000);
+    })();
+  </script>
 </body>
 </html>`;
 }
