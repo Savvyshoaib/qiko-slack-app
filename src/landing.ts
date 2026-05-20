@@ -366,7 +366,7 @@ export function renderLandingHtml(): string {
 
   <main class="wrap">
     <a class="brand" href="${STAGE_SITE}" target="_blank" rel="noopener noreferrer" aria-label="Qiko — opens stage.qiko.ai">
-      <img class="brand-logo" src="${logoUrl}" alt="Qiko" width="120" height="36" />
+      <img class="brand-logo" src="${logoUrl}" alt="Qiko" width="120" height="60" style="margin-left: -12px;" />
     </a>
 
     <section class="hero">
