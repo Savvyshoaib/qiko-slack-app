@@ -59,7 +59,8 @@ export function createApp(): App {
           scopes: [...config.botScopes],
           installationStore: resolveInstallationStore(),
           endpoints: "/slack/events",
-          processBeforeResponse: true,
+          // false: respond to Slack immediately after ack(); avoids operation_timeout on slow Qiko API
+          processBeforeResponse: false,
           installerOptions: {
             directInstall: true,
             installPath: "/slack/install",
@@ -92,7 +93,7 @@ export function createApp(): App {
       : new ExpressReceiver({
           signingSecret: config.signingSecret,
           endpoints: "/slack/events",
-          processBeforeResponse: true,
+          processBeforeResponse: false,
         });
 
     attachPublicRoutes(receiver, oauth);

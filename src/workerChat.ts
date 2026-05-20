@@ -32,9 +32,8 @@ export function formatWorkersList(agents: QikoAgent[]): string {
 
   return list
     .map((a, i) => {
-      const id = agentChatId(a);
-      const status = a.status ? ` (${a.status})` : "";
-      return `${i + 1}. *${agentDisplayName(a)}* — \`${id}\`${status}`;
+      const status = (a.status || "unknown").toLowerCase();
+      return `${i + 1}. *${agentDisplayName(a)}* — (${status})`;
     })
     .join("\n");
 }
@@ -82,7 +81,7 @@ export async function selectWorker(
 
   if (!match) {
     throw new Error(
-      `Worker "${query}" not found. Run \`/qiko-workers\` to see names and IDs.`
+      `Worker "${query}" not found. Run \`/qiko-workers\` to see available names.`
     );
   }
 

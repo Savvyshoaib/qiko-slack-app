@@ -1,11 +1,6 @@
 import type { App } from "@slack/bolt";
 import { loginToQiko, fetchQikoAgents } from "./qikoClient.js";
-import {
-  clearQikoWorking,
-  resolveStatusThreadTs,
-  showQikoWorking,
-  type SlackStatusClient,
-} from "./slackStatus.js";
+import { postSlackText } from "./slackPost.js";
 import { clearSession, getSession, setSession } from "./userSessions.js";
 import { buildLoginModal, QIKO_LOGIN_MODAL_CALLBACK } from "./views.js";
 import {
@@ -15,87 +10,18 @@ import {
   sendMessageToActiveWorker,
 } from "./workerChat.js";
 
-const SLACK_TEXT_MAX = 3900;
-
-function truncateSlackText(text: string): string {
-  if (text.length <= SLACK_TEXT_MAX) return text;
-  return `${text.slice(0, SLACK_TEXT_MAX - 20)}\n\n_(truncated)_`;
-}
-
 type SlashRespond = (message: {
   response_type?: "ephemeral" | "in_channel";
   text: string;
-  replace_original?: boolean;
 }) => Promise<unknown>;
 
-type SlashBody = {
-  team_id: string;
-  channel_id: string;
-  user_id: string;
-  thread_ts?: string;
-};
-
-async function replyCommand(
-  respond: SlashRespond,
-  text: string,
-  visibleToChannel = false
+async function replyEphemeral(
+  client: unknown,
+  channelId: string,
+  userId: string,
+  text: string
 ): Promise<void> {
-  await respond({
-    response_type: visibleToChannel ? "in_channel" : "ephemeral",
-    text,
-  });
-}
-
-async function replyCommandWithLoading(
-  client: SlackStatusClient,
-  body: SlashBody,
-  respond: SlashRespond,
-  visibleToChannel: boolean,
-  work: () => Promise<string>
-): Promise<void> {
-  // Slack requires a response within ~3s or shows operation_timeout.
-  await respond({
-    response_type: "ephemeral",
-    text: "_Qiko is working…_",
-  });
-
-  const replyInThread = body.thread_ts;
-  const statusThreadTs = await resolveStatusThreadTs(
-    client,
-    body.team_id,
-    body.channel_id,
-    body.user_id,
-    replyInThread
-  );
-  const postThreadTs = replyInThread ?? statusThreadTs;
-  const statusShown = await showQikoWorking(client, body.channel_id, statusThreadTs);
-
-  try {
-    const text = await work();
-    await clearQikoWorking(client, body.channel_id, statusThreadTs);
-
-    if (visibleToChannel) {
-      await client.chat.postMessage({
-        channel: body.channel_id,
-        thread_ts: postThreadTs,
-        text,
-      });
-    } else {
-      await replyCommand(respond, text, false);
-    }
-  } catch (error) {
-    await clearQikoWorking(client, body.channel_id, statusThreadTs);
-    const message = error instanceof Error ? error.message : "Something went wrong";
-    if (visibleToChannel) {
-      await client.chat.postMessage({
-        channel: body.channel_id,
-        thread_ts: postThreadTs,
-        text: message,
-      });
-    } else {
-      await replyCommand(respond, message, false);
-    }
-  }
+  await postSlackText(client, channelId, text, { user: userId, ephemeral: true });
 }
 
 async function dmUser(
@@ -103,7 +29,6 @@ async function dmUser(
     conversations: {
       open: (args: { users: string }) => Promise<{ channel?: { id?: string } }>;
     };
-    chat: { postMessage: (args: { channel: string; text: string }) => Promise<unknown> };
   },
   userId: string,
   text: string
@@ -111,7 +36,7 @@ async function dmUser(
   const opened = await client.conversations.open({ users: userId });
   const channelId = opened.channel?.id;
   if (!channelId) throw new Error("Could not open DM with user");
-  await client.chat.postMessage({ channel: channelId, text });
+  await postSlackText(client, channelId, text);
 }
 
 export function registerHandlers(app: App): void {
@@ -126,96 +51,124 @@ export function registerHandlers(app: App): void {
         trigger_id: body.trigger_id,
         view: buildLoginModal(),
       });
-      await replyCommand(
-        respond,
-        "Complete sign-in in the window that opened. (In channels, invite the bot with `/invite @Qikobot` if nothing appears.)"
-      );
+      await respond({
+        response_type: "ephemeral",
+        text: "Complete sign-in in the window that opened. (In channels, `/invite @Qikobot` first if needed.)",
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not open login window";
       console.error("/qiko-login error:", error);
-      await replyCommand(respond, message);
+      await respond({ response_type: "ephemeral", text: message });
     }
   });
 
   app.command("/qiko-status", async ({ ack, body, client, respond }) => {
     await ack();
-    await replyCommandWithLoading(client, body, respond, false, async () => {
+    try {
       const session = getSession(body.team_id, body.user_id);
       if (!session) {
-        return "Not connected to Qiko. Run `/qiko-login` to sign in.";
+        await replyEphemeral(
+          client,
+          body.channel_id,
+          body.user_id,
+          "Not connected to Qiko. Run `/qiko-login` to sign in."
+        );
+        return;
       }
       const name =
         session.user?.user_name ||
         session.user?.name ||
         session.user?.email ||
         session.email;
-      return `Connected to Qiko as *${name}* (linked ${new Date(session.linkedAt).toLocaleString()}).`;
-    });
+      await replyEphemeral(
+        client,
+        body.channel_id,
+        body.user_id,
+        `Connected to Qiko as *${name}* (linked ${new Date(session.linkedAt).toLocaleString()}).`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      await replyEphemeral(client, body.channel_id, body.user_id, message);
+    }
   });
 
   app.command("/qiko-workers", async ({ ack, body, client, respond }) => {
     await ack();
-    await replyCommandWithLoading(client, body, respond, true, async () => {
+    try {
       const session = requireSession(body.team_id, body.user_id);
       const agents = await fetchQikoAgents(session.token);
       const active = session.activeWorker?.name;
       const header = active
-        ? `Your workers (active: *${active}*):\n\n`
-        : "Your Qiko workers:\n\n";
-      return (
+        ? `*Your Qiko workers* (active: *${active}*)\n\n`
+        : "*Your Qiko workers*\n\n";
+      const text =
         header +
         formatWorkersList(agents) +
-        "\n\nSelect: `/qiko-worker <name or id>` (in the *channel* message box, not thread reply)\nThen chat: `/qiko-chat <message>`"
-      );
-    });
+        "\n\n`/qiko-worker <name>` then `/qiko-chat <message>` or type in Qikobot Messages.";
+      await postSlackText(client, body.channel_id, text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      await replyEphemeral(client, body.channel_id, body.user_id, message);
+    }
   });
 
   app.command("/qiko-worker", async ({ ack, body, client, respond }) => {
     await ack();
     const query = body.text?.trim() ?? "";
     if (!query) {
-      await replyCommand(
-        respond,
-        "Usage: `/qiko-worker <worker name or id>`\nExample: `/qiko-worker my-sales-agent`"
-      );
+      await respond({
+        response_type: "ephemeral",
+        text: "Usage: `/qiko-worker <worker name>`\nExample: `/qiko-worker Daniel Carter`",
+      });
       return;
     }
 
-    await replyCommandWithLoading(client, body, respond, true, async () => {
+    try {
       const { worker } = await selectWorker(body.team_id, body.user_id, query);
-      return `Active worker: *${worker.name}* (\`${worker.agentId}\`)\n\nChat: \`/qiko-chat your question here\``;
-    });
+      await postSlackText(
+        client,
+        body.channel_id,
+        `Active worker: *${worker.name}*\n\nChat: \`/qiko-chat your question\` or message Qikobot directly.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      await replyEphemeral(client, body.channel_id, body.user_id, message);
+    }
   });
 
   app.command("/qiko-chat", async ({ ack, body, client, respond }) => {
     await ack();
     const message = body.text?.trim() ?? "";
     if (!message) {
-      await replyCommand(
-        respond,
-        "Usage: `/qiko-chat <message>`\nExample: `/qiko-chat Summarize my pipeline`"
-      );
+      await respond({
+        response_type: "ephemeral",
+        text: "Usage: `/qiko-chat <message>`\nExample: `/qiko-chat Summarize my pipeline`",
+      });
       return;
     }
 
-    await replyCommandWithLoading(client, body, respond, true, async () => {
+    try {
       const { reply, worker } = await sendMessageToActiveWorker(
         body.team_id,
         body.user_id,
         message
       );
-      return `*${worker.name}*:\n${truncateSlackText(reply)}`;
-    });
+      await postSlackText(client, body.channel_id, reply, { workerName: worker.name });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Something went wrong";
+      await replyEphemeral(client, body.channel_id, body.user_id, msg);
+    }
   });
 
-  app.command("/qiko-logout", async ({ ack, body, client, respond }) => {
+  app.command("/qiko-logout", async ({ ack, body, respond }) => {
     await ack();
-    await replyCommandWithLoading(client, body, respond, false, async () => {
-      const removed = clearSession(body.team_id, body.user_id);
-      return removed
+    const removed = clearSession(body.team_id, body.user_id);
+    await respond({
+      response_type: "ephemeral",
+      text: removed
         ? "Disconnected from Qiko on this Slack workspace."
-        : "You were not connected to Qiko.";
+        : "You were not connected to Qiko.",
     });
   });
 
@@ -252,7 +205,7 @@ export function registerHandlers(app: App): void {
       await dmUser(
         client,
         body.user.id,
-        `Qikobot connected as *${displayName}*.\n• Chat here in Messages, or use \`/qiko-workers\`, \`/qiko-worker <name>\`, \`/qiko-chat <message>\``
+        `Qikobot connected as *${displayName}*.\n• Message this app directly, or use \`/qiko-workers\`, \`/qiko-worker <name>\`, \`/qiko-chat <message>\``
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
@@ -266,9 +219,9 @@ export function registerHandlers(app: App): void {
     }
   });
 
-  /** DM Messages tab — plain text chats with the active worker (like /qiko-chat). */
   app.event("message", async ({ event, client, context }) => {
     if (event.subtype || !("user" in event) || !event.user) return;
+    if ("channel_type" in event && event.channel_type !== "im") return;
     const text = "text" in event ? event.text?.trim() : "";
     if (!text || text.startsWith("/")) return;
 
@@ -281,16 +234,13 @@ export function registerHandlers(app: App): void {
         event.user,
         text
       );
-      await client.chat.postMessage({
-        channel: event.channel,
-        text: `*${worker.name}*:\n${truncateSlackText(reply)}`,
-      });
+      await postSlackText(client, event.channel, reply, { workerName: worker.name });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong";
-      await client.chat.postMessage({
-        channel: event.channel,
-        text: message,
+      await postSlackText(client, event.channel, message, {
+        user: event.user,
+        ephemeral: true,
       });
     }
   });
@@ -317,7 +267,7 @@ export function registerHandlers(app: App): void {
             type: "section" as const,
             text: {
               type: "mrkdwn" as const,
-              text: "Connect your Qiko account.\n\nRun `/qiko-login` in any channel or in the Qiko app.",
+              text: "Connect your Qiko account.\n\nRun `/qiko-login` in any channel or in the Qikobot app.",
             },
           },
         ];

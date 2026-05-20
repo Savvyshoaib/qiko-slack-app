@@ -34,7 +34,7 @@ features:
     - command: /qiko-worker
       url: https://qiko-slack-app.onrender.com/slack/events
       description: Select a worker to chat with
-      usage_hint: "[worker name or id]"
+      usage_hint: "[worker name]"
       should_escape: false
     - command: /qiko-chat
       url: https://qiko-slack-app.onrender.com/slack/events
