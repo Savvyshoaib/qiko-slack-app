@@ -53,39 +53,47 @@ async function replyCommandWithLoading(
   visibleToChannel: boolean,
   work: () => Promise<string>
 ): Promise<void> {
-  const threadTs = await resolveStatusThreadTs(
+  // Slack requires a response within ~3s or shows operation_timeout.
+  await respond({
+    response_type: "ephemeral",
+    text: "_Qiko is working…_",
+  });
+
+  const replyInThread = body.thread_ts;
+  const statusThreadTs = await resolveStatusThreadTs(
     client,
     body.team_id,
     body.channel_id,
     body.user_id,
-    body.thread_ts
+    replyInThread
   );
-  const statusShown = await showQikoWorking(client, body.channel_id, threadTs);
+  const postThreadTs = replyInThread ?? statusThreadTs;
+  const statusShown = await showQikoWorking(client, body.channel_id, statusThreadTs);
 
   try {
     const text = await work();
-    await clearQikoWorking(client, body.channel_id, threadTs);
+    await clearQikoWorking(client, body.channel_id, statusThreadTs);
 
     if (visibleToChannel) {
       await client.chat.postMessage({
         channel: body.channel_id,
-        thread_ts: threadTs,
+        thread_ts: postThreadTs,
         text,
       });
     } else {
       await replyCommand(respond, text, false);
     }
   } catch (error) {
-    await clearQikoWorking(client, body.channel_id, threadTs);
+    await clearQikoWorking(client, body.channel_id, statusThreadTs);
     const message = error instanceof Error ? error.message : "Something went wrong";
-    if (statusShown && visibleToChannel) {
+    if (visibleToChannel) {
       await client.chat.postMessage({
         channel: body.channel_id,
-        thread_ts: threadTs,
+        thread_ts: postThreadTs,
         text: message,
       });
     } else {
-      await replyCommand(respond, message, visibleToChannel);
+      await replyCommand(respond, message, false);
     }
   }
 }
@@ -158,7 +166,7 @@ export function registerHandlers(app: App): void {
       return (
         header +
         formatWorkersList(agents) +
-        "\n\nSelect: `/qiko-worker <name or id>`\nThen chat: `/qiko-chat <message>`"
+        "\n\nSelect: `/qiko-worker <name or id>` (in the *channel* message box, not thread reply)\nThen chat: `/qiko-chat <message>`"
       );
     });
   });

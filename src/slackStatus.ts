@@ -45,8 +45,15 @@ function writeAnchors(anchors: Record<string, string>): void {
   fs.writeFileSync(ANCHORS_PATH, JSON.stringify(anchors, null, 2), "utf8");
 }
 
-function anchorKey(teamId: string, channelId: string, userId: string): string {
-  return `${teamId}:${channelId}:${userId}`;
+function anchorKey(
+  teamId: string,
+  channelId: string,
+  userId: string,
+  threadTs?: string
+): string {
+  return threadTs
+    ? `${teamId}:${channelId}:${threadTs}:${userId}`
+    : `${teamId}:${channelId}:${userId}`;
 }
 
 /** Thread root used for composer-level "Qiko is thinking…" status. */
@@ -59,7 +66,7 @@ export async function resolveStatusThreadTs(
 ): Promise<string> {
   if (threadTsFromPayload) return threadTsFromPayload;
 
-  const key = anchorKey(teamId, channelId, userId);
+  const key = anchorKey(teamId, channelId, userId, threadTsFromPayload);
   const anchors = readAnchors();
   if (anchors[key]) return anchors[key];
 
