@@ -3,53 +3,55 @@ _metadata:
   minor_version: 1
 display_information:
   name: Qiko
-  description: Connect your Slack workspace to Qiko — login, list workers, and chat.
-  background_color: "#050810"
+  description: Connect your Slack workspace to Qiko — login, list workers, and chat with AI workers.
+  background_color: "#546599"
 features:
   bot_user:
     display_name: Qiko
     always_online: true
   slash_commands:
     - command: /qiko-login
-      url: https://YOUR_RAILWAY_DOMAIN/slack/events
-      description: Sign in to Qiko with your email and password
+      url: https://qiko-slack-app.onrender.com/slack/events
+      description: Sign in to Qiko
       usage_hint: "[opens login form]"
       should_escape: false
     - command: /qiko-status
-      url: https://YOUR_RAILWAY_DOMAIN/slack/events
-      description: Check if your Qiko account is linked
+      url: https://qiko-slack-app.onrender.com/slack/events
+      description: Check Qiko connection
       should_escape: false
     - command: /qiko-logout
-      url: https://YOUR_RAILWAY_DOMAIN/slack/events
-      description: Disconnect your Qiko account from Slack
+      url: https://qiko-slack-app.onrender.com/slack/events
+      description: Disconnect Qiko
       should_escape: false
     - command: /qiko-workers
-      url: https://YOUR_RAILWAY_DOMAIN/slack/events
+      url: https://qiko-slack-app.onrender.com/slack/events
       description: List your Qiko workers
       should_escape: false
     - command: /qiko-worker
-      url: https://YOUR_RAILWAY_DOMAIN/slack/events
+      url: https://qiko-slack-app.onrender.com/slack/events
       description: Select a worker to chat with
       usage_hint: "[worker name or id]"
       should_escape: false
     - command: /qiko-chat
-      url: https://YOUR_RAILWAY_DOMAIN/slack/events
+      url: https://qiko-slack-app.onrender.com/slack/events
       description: Send a message to your active worker
       usage_hint: "[your message]"
       should_escape: false
 oauth_config:
   redirect_urls:
-    - https://YOUR_RAILWAY_DOMAIN/slack/oauth_redirect
+    - https://qiko-slack-app.onrender.com/slack/oauth_redirect
   scopes:
     bot:
       - chat:write
       - commands
       - users:read
       - im:write
+  pkce_enabled: true
 settings:
   interactivity:
     is_enabled: true
-    request_url: https://YOUR_RAILWAY_DOMAIN/slack/events
+    request_url: https://qiko-slack-app.onrender.com/slack/events
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
+  is_mcp_enabled: false

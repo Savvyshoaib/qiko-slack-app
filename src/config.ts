@@ -4,6 +4,9 @@ function resolveAppUrl(): string {
   const explicit = process.env.SLACK_APP_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
 
+  const render = process.env.RENDER_EXTERNAL_URL?.trim();
+  if (render) return render.replace(/\/$/, "");
+
   const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
   if (railway) return `https://${railway}`;
 

@@ -7,7 +7,8 @@ import {
   oauthRedirectUrl,
   slackEventsUrl,
 } from "./config.js";
-import { fileInstallationStore } from "./installationStore.js";
+import { postgresInstallationStore } from "./postgresInstallationStore.js";
+import { resolveInstallationStore, usePostgresInstallStore } from "./resolveInstallationStore.js";
 import { renderLandingHtml } from "./landing.js";
 import { registerHandlers } from "./registerHandlers.js";
 
@@ -17,13 +18,23 @@ function attachPublicRoutes(receiver: ExpressReceiver, oauth: boolean): void {
     res.end(renderLandingHtml());
   });
 
-  receiver.router.get("/health", (_req, res) => {
+  receiver.router.get("/health", async (_req, res) => {
+    let installations = 0;
+    if (usePostgresInstallStore()) {
+      try {
+        installations = await postgresInstallationStore.countInstallations();
+      } catch {
+        installations = -1;
+      }
+    }
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
         ok: true,
         mode: oauth ? "oauth" : "single-workspace",
         appUrl: config.appUrl,
+        installStore: usePostgresInstallStore() ? "postgres" : "file",
+        installations,
       })
     );
   });
@@ -43,7 +54,7 @@ export function createApp(): App {
           clientSecret: config.clientSecret,
           stateSecret: config.stateSecret,
           scopes: [...config.botScopes],
-          installationStore: fileInstallationStore,
+          installationStore: resolveInstallationStore(),
           endpoints: "/slack/events",
           processBeforeResponse: true,
           installerOptions: {

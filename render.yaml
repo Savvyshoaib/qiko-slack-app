@@ -1,0 +1,32 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: qiko-slack-app
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: SLACK_STATE_SECRET
+        sync: false
+      - key: QIKO_API_BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: qiko-slack-db
+          property: connectionString
+
+databases:
+  - name: qiko-slack-db
+    plan: free
+    region: oregon
