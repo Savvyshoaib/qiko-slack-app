@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { App, ExpressReceiver } from "@slack/bolt";
 import {
   config,
@@ -16,7 +19,20 @@ import {
 } from "./landing.js";
 import { registerHandlers } from "./registerHandlers.js";
 
+const projectRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const logoFile = path.join(projectRoot, "qiko-logo.png");
+
 function attachPublicRoutes(receiver: ExpressReceiver, oauth: boolean): void {
+  receiver.router.get("/qiko-logo.png", (_req, res) => {
+    if (!fs.existsSync(logoFile)) {
+      res.status(404).end("Not found");
+      return;
+    }
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    fs.createReadStream(logoFile).pipe(res);
+  });
+
   receiver.router.get("/", (_req, res) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.end(renderLandingHtml());

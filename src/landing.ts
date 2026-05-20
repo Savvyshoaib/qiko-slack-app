@@ -14,6 +14,7 @@ export function renderLandingHtml(): string {
   const installLink = esc(installUrl());
   const eventsUrl = esc(slackEventsUrl());
   const qikoApp = esc(config.qikoWebOrigin);
+  const logoUrl = esc(`${config.appUrl}/qiko-logo.png`);
   const oauth = isOAuthMode();
 
   const installBlock = oauth
@@ -92,28 +93,19 @@ export function renderLandingHtml(): string {
     }
 
     .brand {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 10px;
       margin-bottom: 40px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      letter-spacing: 0.02em;
+      text-decoration: none;
+      transition: opacity 0.15s ease;
     }
 
-    .brand-mark {
-      width: 32px;
-      height: 32px;
-      border-radius: 10px;
-      background: var(--gradient);
-      box-shadow: var(--glow);
-    }
+    .brand:hover { opacity: 0.88; }
 
-    .brand span {
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+    .brand-logo {
+      height: 36px;
+      width: auto;
+      display: block;
     }
 
     .hero h1 {
@@ -373,10 +365,9 @@ export function renderLandingHtml(): string {
   <div class="bg-grid" aria-hidden="true"></div>
 
   <main class="wrap">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true"></div>
-      <span>Qiko</span>
-    </div>
+    <a class="brand" href="${STAGE_SITE}" target="_blank" rel="noopener noreferrer" aria-label="Qiko — opens stage.qiko.ai">
+      <img class="brand-logo" src="${logoUrl}" alt="Qiko" width="120" height="36" />
+    </a>
 
     <section class="hero">
       <h1><span class="accent">Qikobot</span> for Slack</h1>
