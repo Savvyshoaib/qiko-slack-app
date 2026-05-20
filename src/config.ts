@@ -24,7 +24,16 @@ export const config = {
   botToken: process.env.SLACK_BOT_TOKEN?.trim() || "",
   appToken: process.env.SLACK_APP_TOKEN?.trim() || "",
   qikoApiBaseUrl: process.env.QIKO_API_BASE_URL?.trim() || "",
-  botScopes: ["chat:write", "commands", "users:read", "im:write"] as const,
+  /** Origin header for Qiko API (must match allowed web app origin). */
+  qikoWebOrigin:
+    process.env.QIKO_WEB_ORIGIN?.trim() || "https://stage-app.qiko.ai",
+  botScopes: [
+    "chat:write",
+    "commands",
+    "users:read",
+    "im:write",
+    "app_home:write",
+  ] as const,
 };
 
 /** Production / public install: OAuth per workspace. Local dev: optional single bot token. */

@@ -1,3 +1,5 @@
+import { qikoApiHeaders, readQikoErrorBody } from "./qikoHttp.js";
+
 export interface QikoLoginPayload {
   email: string;
   password: string;
@@ -39,7 +41,7 @@ function extractErrorMessage(data: unknown, fallback: string): string {
       const first = Object.values(errors as Record<string, unknown>)[0];
       if (Array.isArray(first) && typeof first[0] === "string") return first[0];
     }
-    if (message) return message;
+    if (message && message !== "Unauthorized") return message;
   }
   return fallback;
 }
@@ -51,7 +53,7 @@ export async function loginToQiko(payload: QikoLoginPayload): Promise<QikoLoginR
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: qikoApiHeaders(),
       body: JSON.stringify({ email: payload.email, password: payload.password }),
     });
   } catch (error) {
@@ -61,11 +63,22 @@ export async function loginToQiko(payload: QikoLoginPayload): Promise<QikoLoginR
     );
   }
 
+  if (!res.ok) {
+    const detail = await readQikoErrorBody(res);
+    const msg =
+      res.status === 403
+        ? detail ||
+          "Qiko API blocked this server (HTTP 403). Ask backend to allow Render outbound IPs."
+        : detail || extractErrorMessage({}, "Login failed");
+    console.warn(`Qiko login failed: HTTP ${res.status} — ${msg}`);
+    throw new Error(msg);
+  }
+
   const data = (await res.json().catch(() => ({}))) as QikoLoginResponse;
 
-  if (!res.ok || data?.success === false) {
-    const msg = extractErrorMessage(data, "Login failed");
-    console.warn(`Qiko login failed: HTTP ${res.status} — ${msg}`);
+  if (data?.success === false) {
+    const msg = extractErrorMessage(data, "Invalid email or password");
+    console.warn(`Qiko login failed: ${msg}`);
     throw new Error(msg);
   }
 
@@ -103,10 +116,7 @@ export interface QikoChatPayload {
 export async function fetchQikoAgents(token: string): Promise<QikoAgent[]> {
   const res = await fetch(`${getBaseUrl()}/get-agents`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: qikoApiHeaders({ Authorization: `Bearer ${token}` }),
   });
 
   const data = await res.json().catch(() => ({}));
@@ -128,10 +138,7 @@ export async function chatWithQikoWorker(
 ): Promise<string> {
   const res = await fetch(`${getBaseUrl()}/${encodeURIComponent(agentId)}/chat-with-history`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: qikoApiHeaders({ Authorization: `Bearer ${token}` }),
     body: JSON.stringify(payload),
   });
 
@@ -152,10 +159,7 @@ export async function chatWithQikoWorker(
 export async function fetchQikoProfile(token: string): Promise<QikoUser | null> {
   const res = await fetch(`${getBaseUrl()}/user/studio`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: qikoApiHeaders({ Authorization: `Bearer ${token}` }),
   });
 
   if (!res.ok) return null;

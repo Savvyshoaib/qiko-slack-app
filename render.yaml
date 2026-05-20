@@ -21,6 +21,8 @@ services:
         sync: false
       - key: QIKO_API_BASE_URL
         sync: false
+      - key: QIKO_WEB_ORIGIN
+        value: https://stage-app.qiko.ai
       - key: DATABASE_URL
         fromDatabase:
           name: qiko-slack-db

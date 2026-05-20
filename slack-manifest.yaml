@@ -6,6 +6,10 @@ display_information:
   description: Connect your Slack workspace to Qiko — login, list workers, and chat with AI workers.
   background_color: "#546599"
 features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
   bot_user:
     display_name: Qiko
     always_online: true
@@ -46,6 +50,7 @@ oauth_config:
       - commands
       - users:read
       - im:write
+      - app_home:write
   pkce_enabled: true
 settings:
   interactivity:
