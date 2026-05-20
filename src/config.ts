@@ -27,7 +27,7 @@ export const config = {
   /** Origin header for Qiko API (must match allowed web app origin). */
   qikoWebOrigin:
     process.env.QIKO_WEB_ORIGIN?.trim() || "https://stage-app.qiko.ai",
-  botScopes: ["chat:write", "commands", "users:read", "im:write"] as const,
+  botScopes: ["chat:write", "commands", "users:read", "im:write", "im:history"] as const,
 };
 
 /** Production / public install: OAuth per workspace. Local dev: optional single bot token. */

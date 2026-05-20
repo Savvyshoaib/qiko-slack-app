@@ -85,7 +85,7 @@ export async function resolveStatusThreadTs(
     const err = error as { data?: { error?: string } };
     if (err.data?.error === "not_in_channel") {
       throw new Error(
-        "Qiko is not in this channel. Run `/invite @Qiko` here, or use `/qiko-login` in Apps → Qiko (DM)."
+        "Qikobot is not in this channel. Run `/invite @Qikobot` here, or use `/qiko-login` in Apps → Qikobot (DM)."
       );
     }
     throw error;

@@ -128,7 +128,7 @@ export function registerHandlers(app: App): void {
       });
       await replyCommand(
         respond,
-        "Complete sign-in in the window that opened. (In channels, invite the bot with `/invite @Qiko` if nothing appears.)"
+        "Complete sign-in in the window that opened. (In channels, invite the bot with `/invite @Qikobot` if nothing appears.)"
       );
     } catch (error) {
       const message =
@@ -252,7 +252,7 @@ export function registerHandlers(app: App): void {
       await dmUser(
         client,
         body.user.id,
-        `Qiko connected as *${displayName}*.\n• \`/qiko-workers\` — list workers\n• \`/qiko-worker <name>\` — pick one\n• \`/qiko-chat <message>\` — talk to worker`
+        `Qikobot connected as *${displayName}*.\n• Chat here in Messages, or use \`/qiko-workers\`, \`/qiko-worker <name>\`, \`/qiko-chat <message>\``
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
@@ -262,6 +262,35 @@ export function registerHandlers(app: App): void {
         errors: {
           email_block: message.length > 140 ? `${message.slice(0, 137)}…` : message,
         },
+      });
+    }
+  });
+
+  /** DM Messages tab — plain text chats with the active worker (like /qiko-chat). */
+  app.event("message", async ({ event, client, context }) => {
+    if (event.subtype || !("user" in event) || !event.user) return;
+    const text = "text" in event ? event.text?.trim() : "";
+    if (!text || text.startsWith("/")) return;
+
+    const teamId = context.teamId ?? ("team" in event ? event.team : undefined);
+    if (!teamId) return;
+
+    try {
+      const { reply, worker } = await sendMessageToActiveWorker(
+        teamId,
+        event.user,
+        text
+      );
+      await client.chat.postMessage({
+        channel: event.channel,
+        text: `*${worker.name}*:\n${truncateSlackText(reply)}`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Something went wrong";
+      await client.chat.postMessage({
+        channel: event.channel,
+        text: message,
       });
     }
   });

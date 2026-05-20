@@ -9,7 +9,7 @@ export function renderLandingHtml(): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Qiko for Slack</title>
+  <title>Qikobot for Slack</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 560px; margin: 48px auto; padding: 0 20px; background: #050810; color: #e2e8f0; line-height: 1.6; }
     h1 { color: #22d3ee; }
@@ -20,8 +20,8 @@ export function renderLandingHtml(): string {
   </style>
 </head>
 <body>
-  <h1>Qiko for Slack</h1>
-  <p>Install Qiko in your Slack workspace. Each person signs in with their own Qiko account.</p>
+  <h1>Qikobot for Slack</h1>
+  <p>Install Qikobot in your Slack workspace. Each person signs in with their own Qiko account.</p>
   ${
     isOAuthMode()
       ? `<a class="btn" href="${installLink}">Add to Slack</a>
@@ -30,7 +30,7 @@ export function renderLandingHtml(): string {
   }
   <h2>After install</h2>
   <ol>
-    <li>Open the <strong>Qiko</strong> app in Slack (Apps sidebar)</li>
+    <li>Open <strong>Qikobot</strong> in Slack (Apps sidebar) — you can chat in the Messages tab after login</li>
     <li><code>/qiko-login</code> — your Qiko email &amp; password</li>
     <li><code>/qiko-workers</code> — list workers</li>
     <li><code>/qiko-worker &lt;name&gt;</code> — pick a worker</li>

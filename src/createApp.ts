@@ -70,8 +70,8 @@ export function createApp(): App {
               success: (_installation, _opts, _req, res) => {
                 res.setHeader("Content-Type", "text/html; charset=utf-8");
                 res.end(`<!DOCTYPE html><html><body style="font-family:system-ui;max-width:560px;margin:48px auto;padding:0 20px;line-height:1.5">
-<h1>Qiko installed</h1>
-<p>In Slack: click <strong>Apps</strong> in the left sidebar → search <strong>Qiko</strong> → open it.</p>
+<h1>Qikobot installed</h1>
+<p>In Slack: click <strong>Apps</strong> → <strong>Qikobot</strong> → <strong>Messages</strong> tab to chat.</p>
 <p>Then run <code>/qiko-login</code> and sign in with your Qiko email and password.</p>
 <p>In a channel: <code>/invite @Qiko</code> first if commands need the bot in that channel.</p>
 <p class="muted" style="color:#64748b">Password tip: use the exact password from the Qiko web app (check for typos).</p>

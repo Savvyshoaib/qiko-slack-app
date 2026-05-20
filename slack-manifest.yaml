@@ -2,12 +2,16 @@ _metadata:
   major_version: 1
   minor_version: 1
 display_information:
-  name: Qiko
-  description: Connect your Slack workspace to Qiko — login, list workers, and chat with AI workers.
+  name: Qikobot
+  description: Connect your Slack workspace to Qiko — login, list workers, and chat with AI workers in channels and DMs.
   background_color: "#546599"
 features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
   bot_user:
-    display_name: Qiko
+    display_name: Qikobot
     always_online: true
   slash_commands:
     - command: /qiko-login
@@ -46,8 +50,13 @@ oauth_config:
       - commands
       - users:read
       - im:write
+      - im:history
   pkce_enabled: true
 settings:
+  event_subscriptions:
+    request_url: https://qiko-slack-app.onrender.com/slack/events
+    bot_events:
+      - message.im
   interactivity:
     is_enabled: true
     request_url: https://qiko-slack-app.onrender.com/slack/events
