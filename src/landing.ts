@@ -103,9 +103,10 @@ export function renderLandingHtml(): string {
     .brand:hover { opacity: 0.88; }
 
     .brand-logo {
-      height: 36px;
+      height: 60px;
       width: auto;
       display: block;
+      margin-left: -12px;
     }
 
     .hero h1 {
@@ -366,7 +367,7 @@ export function renderLandingHtml(): string {
 
   <main class="wrap">
     <a class="brand" href="${STAGE_SITE}" target="_blank" rel="noopener noreferrer" aria-label="Qiko — opens stage.qiko.ai">
-      <img class="brand-logo" src="${logoUrl}" alt="Qiko" width="120" height="60" style="margin-left: -12px;" />
+      <img class="brand-logo" src="${logoUrl}" alt="Qiko" width="120" height="60" />
     </a>
 
     <section class="hero">
@@ -463,13 +464,10 @@ export function renderLandingHtml(): string {
       </ul>
     </section>
 
-    <section class="dev">
-      <div class="dev-label">Slack app — Events request URL</div>
-      <code class="dev-url">${eventsUrl}</code>
-    </section>
+    
 
     <footer>
-      Powered by <a href="${STAGE_SITE}">Qiko</a> · <a href="${qikoApp}">Web app</a>
+      Powered by <a href="${STAGE_SITE}">Qiko</a> </a>
     </footer>
   </main>
 </body>
