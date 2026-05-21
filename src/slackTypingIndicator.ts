@@ -31,6 +31,26 @@ function qikoAppImageUrl(): string {
   return `${config.appUrl}/qiko-app.png`;
 }
 
+/** Small icon + phrase on one line (Slack context block). */
+function typingBlocks(phrase: string): Record<string, unknown>[] {
+  return [
+    {
+      type: "context",
+      elements: [
+        {
+          type: "image",
+          image_url: qikoAppImageUrl(),
+          alt_text: "Qiko",
+        },
+        {
+          type: "mrkdwn",
+          text: `_${phrase}_`,
+        },
+      ],
+    },
+  ];
+}
+
 function typingMessagePayload(
   channel: string,
   phrase: string,
@@ -39,17 +59,23 @@ function typingMessagePayload(
   const payload: Record<string, unknown> = {
     channel,
     text: phrase,
-    blocks: [
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: `_${phrase}_` },
-        accessory: {
-          type: "image",
-          image_url: qikoAppImageUrl(),
-          alt_text: "Qiko",
-        },
-      },
-    ],
+    blocks: typingBlocks(phrase),
+  };
+  if (threadTs) payload.thread_ts = threadTs;
+  return payload;
+}
+
+function typingUpdatePayload(
+  channel: string,
+  loadingTs: string,
+  phrase: string,
+  threadTs?: string
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    channel,
+    ts: loadingTs,
+    text: phrase,
+    blocks: typingBlocks(phrase),
   };
   if (threadTs) payload.thread_ts = threadTs;
   return payload;
@@ -67,7 +93,7 @@ function startTypingLoop(
     index = (index + 1) % TYPING_PHRASES.length;
     const phrase = TYPING_PHRASES[index];
     void chat
-      .update(typingMessagePayload(channel, phrase, threadTs))
+      .update(typingUpdatePayload(channel, loadingTs, phrase, threadTs))
       .catch(() => {
         /* ignore rate limits / deleted message */
       });
@@ -125,7 +151,17 @@ export async function withQikoTyping(
     stopLoop();
     const msg = error instanceof Error ? error.message : "Something went wrong";
     if (loadingTs) {
-      await chat.update({ channel, ts: loadingTs, text: msg, blocks: undefined });
+      await chat.update({
+        channel,
+        ts: loadingTs,
+        text: msg,
+        blocks: [
+          {
+            type: "context",
+            elements: [{ type: "mrkdwn", text: msg }],
+          },
+        ],
+      });
     } else {
       throw error;
     }
