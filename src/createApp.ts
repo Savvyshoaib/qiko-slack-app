@@ -17,7 +17,6 @@ import {
   renderInstallSuccessHtml,
   renderLandingHtml,
 } from "./landing.js";
-import { attachLoginRoutes } from "./loginRoutes.js";
 import { registerHandlers } from "./registerHandlers.js";
 import { resolvePostInstallRedirectUrl } from "./slackRedirect.js";
 
@@ -122,7 +121,6 @@ export function createApp(): App {
         });
 
     attachPublicRoutes(receiver, oauth);
-    attachLoginRoutes(receiver);
   }
 
   // OAuth must live on ExpressReceiver (custom receiver ignores App-level clientId/secret).
