@@ -51,12 +51,14 @@ oauth_config:
       - users:read
       - im:write
       - im:history
+      - app_mentions:read
   pkce_enabled: true
 settings:
   event_subscriptions:
     request_url: https://qiko-slack-app.onrender.com/slack/events
     bot_events:
       - message.im
+      - app_mention
   interactivity:
     is_enabled: true
     request_url: https://qiko-slack-app.onrender.com/slack/events

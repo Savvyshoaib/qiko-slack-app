@@ -9,7 +9,7 @@ import { getSession, setActiveWorker, type ActiveWorker } from "./userSessions.j
 export function requireSession(teamId: string, userId: string) {
   const session = getSession(teamId, userId);
   if (!session) {
-    throw new Error("Not connected to Qiko. Run `/qiko-login` first.");
+    throw new Error("Not connected to Qiko. Run `/qiko-login` once, then use `@Qikobot`.");
   }
   return session;
 }
@@ -70,6 +70,25 @@ export function toActiveWorker(agent: QikoAgent): ActiveWorker {
   };
 }
 
+export async function selectWorkerByIndex(
+  teamId: string,
+  userId: string,
+  indexOneBased: number
+): Promise<{ worker: ActiveWorker; agents: QikoAgent[] }> {
+  const session = requireSession(teamId, userId);
+  const agents = await fetchQikoAgents(session.token);
+  const ready = agents.filter((a) => (a.status || "").toLowerCase() === "ready");
+  const i = indexOneBased - 1;
+  if (i < 0 || i >= ready.length) {
+    throw new Error(
+      `Worker #${indexOneBased} not found. You have ${ready.length} ready worker(s). Try \`@Qikobot workers\`.`
+    );
+  }
+  const worker = toActiveWorker(ready[i]);
+  setActiveWorker(teamId, userId, worker);
+  return { worker, agents };
+}
+
 export async function selectWorker(
   teamId: string,
   userId: string,
@@ -111,14 +130,13 @@ export async function sendMessageToActiveWorker(
   if (!worker) {
     const agents = await fetchQikoAgents(session.token);
     const ready = agents.filter((a) => (a.status || "").toLowerCase() === "ready");
-    if (ready.length === 1) {
-      worker = toActiveWorker(ready[0]);
-      setActiveWorker(teamId, userId, worker);
-    } else {
+    if (ready.length === 0) {
       throw new Error(
-        "No worker selected. Run `/qiko-worker <name>` or `/qiko-workers` first."
+        "No ready workers on your account. Create one in the Qiko dashboard, then `@Qikobot workers`."
       );
     }
+    worker = toActiveWorker(ready[0]);
+    setActiveWorker(teamId, userId, worker);
   }
 
   const payload: QikoChatPayload = {

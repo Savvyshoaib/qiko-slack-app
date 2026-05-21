@@ -9,6 +9,11 @@ import {
   selectWorker,
   sendMessageToActiveWorker,
 } from "./workerChat.js";
+import {
+  handleMentionRoute,
+  parseMentionCommand,
+  stripBotMention,
+} from "./mentionHandler.js";
 import { withQikoTyping } from "./slackTypingIndicator.js";
 
 type SlashRespond = (message: {
@@ -229,7 +234,7 @@ export function registerHandlers(app: App): void {
       await dmUser(
         client,
         body.user.id,
-        `Qikobot connected as *${displayName}*.\n• Message this app directly, or use \`/qiko-workers\`, \`/qiko-worker <name>\`, \`/qiko-chat <message>\``
+        `Qikobot connected as *${displayName}*.\n• In any channel: \`@Qikobot your question\`\n• \`@Qikobot workers\` · \`@Qikobot worker 1\` · or message this app directly`
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
@@ -239,6 +244,34 @@ export function registerHandlers(app: App): void {
         errors: {
           email_block: message.length > 140 ? `${message.slice(0, 137)}…` : message,
         },
+      });
+    }
+  });
+
+  app.event("app_mention", async ({ event, client, context }) => {
+    const teamId = context.teamId ?? event.team;
+    const userId = event.user;
+    if (!teamId || !userId) return;
+
+    const text = stripBotMention(event.text ?? "");
+    const threadTs = event.thread_ts || event.ts;
+
+    try {
+      await withQikoTyping(client, event.channel, threadTs, async () => {
+        const route = parseMentionCommand(text);
+        const result = await handleMentionRoute(teamId, userId, route);
+        return {
+          content: result.content,
+          workerName: result.workerName,
+        };
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Something went wrong";
+      await postSlackText(client, event.channel, message, {
+        user: userId,
+        ephemeral: true,
+        threadTs,
       });
     }
   });
@@ -289,7 +322,7 @@ export function registerHandlers(app: App): void {
                 session.activeWorker
                   ? `\nActive worker: *${session.activeWorker.name}*`
                   : ""
-              }\n\n\`/qiko-workers\` · \`/qiko-worker <name>\` · \`/qiko-chat <message>\``,
+              }\n\nMention \`@Qikobot\` in channels or message here directly.`,
             },
           },
         ]
@@ -298,7 +331,7 @@ export function registerHandlers(app: App): void {
             type: "section" as const,
             text: {
               type: "mrkdwn" as const,
-              text: "Connect your Qiko account.\n\nRun `/qiko-login` in any channel or in the Qikobot app.",
+              text: "Connect your Qiko account.\n\nRun `/qiko-login` once, then use `@Qikobot` in any channel.",
             },
           },
         ];
