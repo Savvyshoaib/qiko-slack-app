@@ -23,12 +23,7 @@ export type SlackStatusClient = {
 
 const ANCHORS_PATH = path.join(process.cwd(), "data", "slack-thread-anchors.json");
 
-const LOADING_MESSAGES = [
-  "Connecting to Qiko…",
-  "Loading your workers…",
-  "Thinking…",
-  "Preparing a reply…",
-];
+const TYPING_STATUS = "typing...";
 
 function readAnchors(): Record<string, string> {
   try {
@@ -92,7 +87,8 @@ export async function resolveStatusThreadTs(
   }
 }
 
-export async function showQikoWorking(
+/** Composer typing indicator (below message box). Requires Agents & AI Apps on the Slack app. */
+export async function showTyping(
   client: SlackStatusClient,
   channelId: string,
   threadTs: string
@@ -101,17 +97,16 @@ export async function showQikoWorking(
     await client.assistant.threads.setStatus({
       channel_id: channelId,
       thread_ts: threadTs,
-      status: "is thinking…",
-      loading_messages: LOADING_MESSAGES,
+      status: TYPING_STATUS,
     });
     return true;
   } catch (error) {
-    console.warn("assistant.threads.setStatus failed:", error);
+    console.warn("assistant.threads.setStatus (typing) failed:", error);
     return false;
   }
 }
 
-export async function clearQikoWorking(
+export async function clearTyping(
   client: SlackStatusClient,
   channelId: string,
   threadTs: string
@@ -123,6 +118,26 @@ export async function clearQikoWorking(
       status: "",
     });
   } catch {
-    // Status may already be cleared by chat.postMessage
+    // Cleared automatically when a reply is posted
+  }
+}
+
+/** Show typing under the composer during async work; always cleared in finally. */
+export async function withTypingIndicator(
+  client: unknown,
+  channelId: string,
+  threadTs: string | undefined,
+  work: () => Promise<void>
+): Promise<void> {
+  if (!threadTs) {
+    await work();
+    return;
+  }
+  const statusClient = client as SlackStatusClient;
+  await showTyping(statusClient, channelId, threadTs);
+  try {
+    await work();
+  } finally {
+    await clearTyping(statusClient, channelId, threadTs);
   }
 }

@@ -9,6 +9,7 @@ import {
   selectWorker,
   sendMessageToActiveWorker,
 } from "./workerChat.js";
+import { withTypingIndicator } from "./slackStatus.js";
 
 type SlashRespond = (message: {
   response_type?: "ephemeral" | "in_channel";
@@ -148,13 +149,17 @@ export function registerHandlers(app: App): void {
       return;
     }
 
+    const threadTs = body.thread_ts || undefined;
+
     try {
-      const { reply, worker } = await sendMessageToActiveWorker(
-        body.team_id,
-        body.user_id,
-        message
-      );
-      await postSlackText(client, body.channel_id, reply, { workerName: worker.name });
+      await withTypingIndicator(client, body.channel_id, threadTs, async () => {
+        const { reply, worker } = await sendMessageToActiveWorker(
+          body.team_id,
+          body.user_id,
+          message
+        );
+        await postSlackText(client, body.channel_id, reply, { workerName: worker.name });
+      });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Something went wrong";
       await replyEphemeral(client, body.channel_id, body.user_id, msg);
@@ -228,13 +233,18 @@ export function registerHandlers(app: App): void {
     const teamId = context.teamId ?? ("team" in event ? event.team : undefined);
     if (!teamId) return;
 
+    const threadTs =
+      ("thread_ts" in event && event.thread_ts) || ("ts" in event ? event.ts : undefined);
+
     try {
-      const { reply, worker } = await sendMessageToActiveWorker(
-        teamId,
-        event.user,
-        text
-      );
-      await postSlackText(client, event.channel, reply, { workerName: worker.name });
+      await withTypingIndicator(client, event.channel, threadTs, async () => {
+        const { reply, worker } = await sendMessageToActiveWorker(
+          teamId,
+          event.user,
+          text
+        );
+        await postSlackText(client, event.channel, reply, { workerName: worker.name });
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong";
