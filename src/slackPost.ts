@@ -11,7 +11,12 @@ export async function postSlackText(
   client: unknown,
   channel: string,
   content: string,
-  options?: { user?: string; workerName?: string; ephemeral?: boolean }
+  options?: {
+    user?: string;
+    workerName?: string;
+    ephemeral?: boolean;
+    threadTs?: string;
+  }
 ): Promise<void> {
   const { chat } = client as SlackChatClient;
   const formatted = options?.workerName
@@ -30,6 +35,10 @@ export async function postSlackText(
 
   if (formatted.blocks?.length) {
     payload.blocks = formatted.blocks;
+  }
+
+  if (options?.threadTs) {
+    payload.thread_ts = options.threadTs;
   }
 
   if (options?.ephemeral && options.user) {
