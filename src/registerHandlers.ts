@@ -1,8 +1,14 @@
-import type { App } from "@slack/bolt";
+import type { App, BlockButtonAction, BlockPlainTextInputAction } from "@slack/bolt";
 import { loginToQiko, fetchQikoAgents } from "./qikoClient.js";
 import { postSlackText } from "./slackPost.js";
 import { clearSession, getSession, setSession } from "./userSessions.js";
-import { buildLoginModal, QIKO_LOGIN_MODAL_CALLBACK } from "./views.js";
+import { clearLoginDraft, getLoginDraft, setLoginDraft } from "./loginDraft.js";
+import {
+  buildLoginModal,
+  PASSWORD_INPUT_ACTION,
+  PASSWORD_TOGGLE_ACTION,
+  QIKO_LOGIN_MODAL_CALLBACK,
+} from "./views.js";
 import {
   formatWorkersList,
   requireSession,
@@ -196,10 +202,64 @@ export function registerHandlers(app: App): void {
     }
   });
 
+  app.action(PASSWORD_TOGGLE_ACTION, async ({ ack, body, client }) => {
+    await ack();
+    const actionBody = body as BlockButtonAction;
+    const view = actionBody.view;
+    if (!view || view.type !== "modal" || !view.id || !view.hash) return;
+
+    const teamId = actionBody.team?.id ?? actionBody.user.team_id ?? "";
+    const userId = actionBody.user.id;
+    const show = actionBody.actions[0]?.value === "show";
+
+    const email = view.state?.values?.email_block?.email_input?.value?.trim() ?? "";
+    const fromInput = view.state?.values?.password_block?.[PASSWORD_INPUT_ACTION]?.value;
+    let password = typeof fromInput === "string" ? fromInput : "";
+    if (!password) password = getLoginDraft(teamId, userId)?.password ?? "";
+
+    if (!show && password) {
+      setLoginDraft(teamId, userId, { email, password });
+    }
+
+    await client.views.update({
+      view_id: view.id,
+      hash: view.hash,
+      view: buildLoginModal({
+        showPassword: show,
+        email,
+        passwordValue: password,
+      }),
+    });
+  });
+
+  app.action(
+    { action_id: PASSWORD_INPUT_ACTION, callback_id: QIKO_LOGIN_MODAL_CALLBACK },
+    async ({ ack, body }) => {
+      await ack();
+      const actionBody = body as BlockPlainTextInputAction;
+      const teamId = actionBody.team?.id ?? actionBody.user.team_id ?? "";
+      const userId = actionBody.user.id;
+      const password = actionBody.actions[0]?.value ?? "";
+      const email =
+        actionBody.view?.state?.values?.email_block?.email_input?.value?.trim() ?? "";
+      setLoginDraft(teamId, userId, { email, password });
+    }
+  );
+
+  app.view(
+    { callback_id: QIKO_LOGIN_MODAL_CALLBACK, type: "view_closed" },
+    async ({ body }) => {
+      const teamId = body.team?.id ?? body.user.team_id ?? "";
+      clearLoginDraft(teamId, body.user.id);
+    }
+  );
+
   app.view(QIKO_LOGIN_MODAL_CALLBACK, async ({ ack, body, view, client }) => {
-    const email = view.state.values.email_block?.email_input?.value?.trim() ?? "";
-    const password = view.state.values.password_block?.password_input?.value ?? "";
     const teamId = body.team?.id ?? "";
+    const email = view.state.values.email_block?.email_input?.value?.trim() ?? "";
+    const fromField = view.state.values.password_block?.[PASSWORD_INPUT_ACTION]?.value ?? "";
+    const password =
+      fromField || getLoginDraft(teamId, body.user.id)?.password || "";
 
     if (!email || !password) {
       await ack({
@@ -223,6 +283,7 @@ export function registerHandlers(app: App): void {
         email: user?.email ?? email,
       });
 
+      clearLoginDraft(teamId, body.user.id);
       await ack();
 
       const displayName = user?.user_name || user?.name || user?.email || email;
