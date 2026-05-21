@@ -1,15 +1,8 @@
-import type { App, BlockButtonAction, BlockPlainTextInputAction } from "@slack/bolt";
-import { fetchQikoAgents, loginToQiko } from "./qikoClient.js";
-import { clearLoginDraft, getLoginDraft, setLoginDraft } from "./loginDraft.js";
+import type { App } from "@slack/bolt";
+import { loginToQiko, fetchQikoAgents } from "./qikoClient.js";
 import { postSlackText } from "./slackPost.js";
 import { clearSession, getSession, setSession } from "./userSessions.js";
-import {
-  buildLoginLoadingModal,
-  buildLoginModal,
-  PASSWORD_INPUT_ACTION,
-  PASSWORD_TOGGLE_ACTION,
-  QIKO_LOGIN_MODAL_CALLBACK,
-} from "./views.js";
+import { buildLoginModal, QIKO_LOGIN_MODAL_CALLBACK } from "./views.js";
 import {
   formatWorkersList,
   requireSession,
@@ -47,17 +40,6 @@ async function dmUser(
   await postSlackText(client, channelId, text);
 }
 
-async function closeLoginModal(
-  client: { apiCall: (method: string, options?: Record<string, unknown>) => Promise<unknown> },
-  viewId: string
-): Promise<void> {
-  try {
-    await client.apiCall("views.pop", { view_id: viewId });
-  } catch (error) {
-    console.warn("Could not close login modal:", error);
-  }
-}
-
 export function registerHandlers(app: App): void {
   app.error(async (error) => {
     console.error("Slack app error:", error);
@@ -65,10 +47,19 @@ export function registerHandlers(app: App): void {
 
   app.command("/qiko-login", async ({ ack, body, client }) => {
     await ack();
+    const threadTs = body.thread_ts || undefined;
     try {
-      await client.views.open({
-        trigger_id: body.trigger_id,
-        view: buildLoginModal() as never,
+      await withQikoTyping(client, body.channel_id, threadTs, async () => {
+        await client.views.open({
+          trigger_id: body.trigger_id,
+          view: buildLoginModal(),
+        });
+        return {
+          content:
+            "Complete sign-in in the window that opened. (In channels, `/invite @Qikobot` first if needed.)",
+          ephemeral: true,
+          userId: body.user_id,
+        };
       });
     } catch (error) {
       const message =
@@ -205,88 +196,21 @@ export function registerHandlers(app: App): void {
     }
   });
 
-  app.action(PASSWORD_TOGGLE_ACTION, async ({ ack, body, client }) => {
-    await ack();
-    const actionBody = body as BlockButtonAction;
-    const view = actionBody.view;
-    if (!view || view.type !== "modal" || !view.id || !view.hash) return;
-
-    const teamId = actionBody.team?.id ?? actionBody.user.team_id ?? "";
-    const userId = actionBody.user.id;
-    const show = actionBody.actions[0]?.value === "show";
-
-    const email = view.state?.values?.email_block?.email_input?.value?.trim() ?? "";
-    const fromInput = view.state?.values?.password_block?.[PASSWORD_INPUT_ACTION]?.value;
-    let password = typeof fromInput === "string" ? fromInput : "";
-    if (!password) password = getLoginDraft(teamId, userId)?.password ?? "";
-
-    if (!show && password) {
-      setLoginDraft(teamId, userId, { email, password });
-    }
-
-    await client.views.update({
-      view_id: view.id,
-      hash: view.hash,
-      view: buildLoginModal({
-        showPassword: show,
-        email,
-        passwordValue: password,
-      }) as never,
-    });
-  });
-
-  app.action(
-    { action_id: PASSWORD_INPUT_ACTION, callback_id: QIKO_LOGIN_MODAL_CALLBACK },
-    async ({ ack, body }) => {
-      await ack();
-      const actionBody = body as BlockPlainTextInputAction;
-      const teamId = actionBody.team?.id ?? actionBody.user.team_id ?? "";
-      const userId = actionBody.user.id;
-      const password = actionBody.actions[0]?.value ?? "";
-      const email =
-        actionBody.view?.state?.values?.email_block?.email_input?.value?.trim() ?? "";
-      setLoginDraft(teamId, userId, { email, password });
-    }
-  );
-
-  app.view(
-    { callback_id: QIKO_LOGIN_MODAL_CALLBACK, type: "view_closed" },
-    async ({ body }) => {
-      const teamId = body.team?.id ?? body.user.team_id ?? "";
-      clearLoginDraft(teamId, body.user.id);
-    }
-  );
-
   app.view(QIKO_LOGIN_MODAL_CALLBACK, async ({ ack, body, view, client }) => {
-    const teamId = body.team?.id ?? "";
     const email = view.state.values.email_block?.email_input?.value?.trim() ?? "";
-    const fromField = view.state.values.password_block?.[PASSWORD_INPUT_ACTION]?.value ?? "";
-    const password =
-      fromField || getLoginDraft(teamId, body.user.id)?.password || "";
+    const password = view.state.values.password_block?.password_input?.value ?? "";
+    const teamId = body.team?.id ?? "";
 
     if (!email || !password) {
       await ack({
         response_action: "errors",
         errors: {
           ...(!email ? { email_block: "Email is required" } : {}),
-          ...(!password
-            ? {
-                email_block:
-                  "Password is required. Use *Show password* if the field is hidden.",
-              }
-            : {}),
+          ...(!password ? { password_block: "Password is required" } : {}),
         },
       });
       return;
     }
-
-    const viewId = view.id;
-    const viewHash = view.hash;
-
-    await ack({
-      response_action: "update",
-      view: buildLoginLoadingModal(),
-    });
 
     try {
       const result = await loginToQiko({ email, password });
@@ -299,8 +223,7 @@ export function registerHandlers(app: App): void {
         email: user?.email ?? email,
       });
 
-      clearLoginDraft(teamId, body.user.id);
-      await closeLoginModal(client, viewId);
+      await ack();
 
       const displayName = user?.user_name || user?.name || user?.email || email;
       await dmUser(
@@ -311,24 +234,12 @@ export function registerHandlers(app: App): void {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
       console.error("Qiko modal login error:", message);
-      clearLoginDraft(teamId, body.user.id);
-
-      const short = message.length > 140 ? `${message.slice(0, 137)}…` : message;
-      try {
-        await client.views.update({
-          view_id: viewId,
-          hash: viewHash,
-          view: buildLoginModal({
-            email,
-            passwordValue: password,
-            showPassword: true,
-            error: short,
-          }) as never,
-        });
-      } catch (updateError) {
-        console.error("Could not restore login modal:", updateError);
-        await dmUser(client, body.user.id, `Login failed: ${short}`);
-      }
+      await ack({
+        response_action: "errors",
+        errors: {
+          email_block: message.length > 140 ? `${message.slice(0, 137)}…` : message,
+        },
+      });
     }
   });
 
