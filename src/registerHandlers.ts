@@ -1,14 +1,9 @@
-import type { App, BlockButtonAction, BlockPlainTextInputAction } from "@slack/bolt";
-import { loginToQiko, fetchQikoAgents } from "./qikoClient.js";
+import type { App } from "@slack/bolt";
+import { fetchQikoAgents } from "./qikoClient.js";
+import { slackLoginUrl } from "./loginToken.js";
 import { postSlackText } from "./slackPost.js";
-import { clearSession, getSession, setSession } from "./userSessions.js";
-import { clearLoginDraft, getLoginDraft, setLoginDraft } from "./loginDraft.js";
-import {
-  buildLoginModal,
-  PASSWORD_INPUT_ACTION,
-  PASSWORD_TOGGLE_ACTION,
-  QIKO_LOGIN_MODAL_CALLBACK,
-} from "./views.js";
+import { clearSession, getSession } from "./userSessions.js";
+import { buildLoginModal } from "./views.js";
 import {
   formatWorkersList,
   requireSession,
@@ -31,21 +26,6 @@ async function replyEphemeral(
   await postSlackText(client, channelId, text, { user: userId, ephemeral: true });
 }
 
-async function dmUser(
-  client: {
-    conversations: {
-      open: (args: { users: string }) => Promise<{ channel?: { id?: string } }>;
-    };
-  },
-  userId: string,
-  text: string
-): Promise<void> {
-  const opened = await client.conversations.open({ users: userId });
-  const channelId = opened.channel?.id;
-  if (!channelId) throw new Error("Could not open DM with user");
-  await postSlackText(client, channelId, text);
-}
-
 export function registerHandlers(app: App): void {
   app.error(async (error) => {
     console.error("Slack app error:", error);
@@ -53,19 +33,11 @@ export function registerHandlers(app: App): void {
 
   app.command("/qiko-login", async ({ ack, body, client }) => {
     await ack();
-    const threadTs = body.thread_ts || undefined;
     try {
-      await withQikoTyping(client, body.channel_id, threadTs, async () => {
-        await client.views.open({
-          trigger_id: body.trigger_id,
-          view: buildLoginModal(),
-        });
-        return {
-          content:
-            "Complete sign-in in the window that opened. (In channels, `/invite @Qikobot` first if needed.)",
-          ephemeral: true,
-          userId: body.user_id,
-        };
+      const loginUrl = slackLoginUrl(body.team_id, body.user_id);
+      await client.views.open({
+        trigger_id: body.trigger_id,
+        view: buildLoginModal(loginUrl),
       });
     } catch (error) {
       const message =
@@ -199,108 +171,6 @@ export function registerHandlers(app: App): void {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Something went wrong";
       await replyEphemeral(client, body.channel_id, body.user_id, message);
-    }
-  });
-
-  app.action(PASSWORD_TOGGLE_ACTION, async ({ ack, body, client }) => {
-    await ack();
-    const actionBody = body as BlockButtonAction;
-    const view = actionBody.view;
-    if (!view || view.type !== "modal" || !view.id || !view.hash) return;
-
-    const teamId = actionBody.team?.id ?? actionBody.user.team_id ?? "";
-    const userId = actionBody.user.id;
-    const show = actionBody.actions[0]?.value === "show";
-
-    const email = view.state?.values?.email_block?.email_input?.value?.trim() ?? "";
-    const fromInput = view.state?.values?.password_block?.[PASSWORD_INPUT_ACTION]?.value;
-    let password = typeof fromInput === "string" ? fromInput : "";
-    if (!password) password = getLoginDraft(teamId, userId)?.password ?? "";
-
-    if (!show && password) {
-      setLoginDraft(teamId, userId, { email, password });
-    }
-
-    await client.views.update({
-      view_id: view.id,
-      hash: view.hash,
-      view: buildLoginModal({
-        showPassword: show,
-        email,
-        passwordValue: password,
-      }),
-    });
-  });
-
-  app.action(
-    { action_id: PASSWORD_INPUT_ACTION, callback_id: QIKO_LOGIN_MODAL_CALLBACK },
-    async ({ ack, body }) => {
-      await ack();
-      const actionBody = body as BlockPlainTextInputAction;
-      const teamId = actionBody.team?.id ?? actionBody.user.team_id ?? "";
-      const userId = actionBody.user.id;
-      const password = actionBody.actions[0]?.value ?? "";
-      const email =
-        actionBody.view?.state?.values?.email_block?.email_input?.value?.trim() ?? "";
-      setLoginDraft(teamId, userId, { email, password });
-    }
-  );
-
-  app.view(
-    { callback_id: QIKO_LOGIN_MODAL_CALLBACK, type: "view_closed" },
-    async ({ body }) => {
-      const teamId = body.team?.id ?? body.user.team_id ?? "";
-      clearLoginDraft(teamId, body.user.id);
-    }
-  );
-
-  app.view(QIKO_LOGIN_MODAL_CALLBACK, async ({ ack, body, view, client }) => {
-    const teamId = body.team?.id ?? "";
-    const email = view.state.values.email_block?.email_input?.value?.trim() ?? "";
-    const fromField = view.state.values.password_block?.[PASSWORD_INPUT_ACTION]?.value ?? "";
-    const password =
-      fromField || getLoginDraft(teamId, body.user.id)?.password || "";
-
-    if (!email || !password) {
-      await ack({
-        response_action: "errors",
-        errors: {
-          ...(!email ? { email_block: "Email is required" } : {}),
-          ...(!password ? { password_block: "Password is required" } : {}),
-        },
-      });
-      return;
-    }
-
-    try {
-      const result = await loginToQiko({ email, password });
-      const token = result.data!.token!;
-      const user = result.data?.user ?? null;
-
-      setSession(teamId, body.user.id, {
-        token,
-        user,
-        email: user?.email ?? email,
-      });
-
-      clearLoginDraft(teamId, body.user.id);
-      await ack();
-
-      const displayName = user?.user_name || user?.name || user?.email || email;
-      await dmUser(
-        client,
-        body.user.id,
-        `Qikobot connected as *${displayName}*.\n• Message this app directly, or use \`/qiko-workers\`, \`/qiko-worker <name>\`, \`/qiko-chat <message>\``
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Login failed";
-      console.error("Qiko modal login error:", message);
-      await ack({
-        response_action: "errors",
-        errors: {
-          email_block: message.length > 140 ? `${message.slice(0, 137)}…` : message,
-        },
-      });
     }
   });
 
