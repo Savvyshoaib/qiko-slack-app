@@ -9,8 +9,6 @@ import {
   selectWorker,
   sendMessageToActiveWorker,
 } from "./workerChat.js";
-import { registerAssistant } from "./registerAssistant.js";
-import { withTypingIndicator } from "./slackStatus.js";
 
 type SlashRespond = (message: {
   response_type?: "ephemeral" | "in_channel";
@@ -42,8 +40,6 @@ async function dmUser(
 }
 
 export function registerHandlers(app: App): void {
-  registerAssistant(app);
-
   app.error(async (error) => {
     console.error("Slack app error:", error);
   });
@@ -152,17 +148,13 @@ export function registerHandlers(app: App): void {
       return;
     }
 
-    const threadTs = body.thread_ts || undefined;
-
     try {
-      await withTypingIndicator(client, body.channel_id, threadTs, async () => {
-        const { reply, worker } = await sendMessageToActiveWorker(
-          body.team_id,
-          body.user_id,
-          message
-        );
-        await postSlackText(client, body.channel_id, reply, { workerName: worker.name });
-      });
+      const { reply, worker } = await sendMessageToActiveWorker(
+        body.team_id,
+        body.user_id,
+        message
+      );
+      await postSlackText(client, body.channel_id, reply, { workerName: worker.name });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Something went wrong";
       await replyEphemeral(client, body.channel_id, body.user_id, msg);
@@ -223,6 +215,32 @@ export function registerHandlers(app: App): void {
         errors: {
           email_block: message.length > 140 ? `${message.slice(0, 137)}…` : message,
         },
+      });
+    }
+  });
+
+  app.event("message", async ({ event, client, context }) => {
+    if (event.subtype || !("user" in event) || !event.user) return;
+    if ("channel_type" in event && event.channel_type !== "im") return;
+    const text = "text" in event ? event.text?.trim() : "";
+    if (!text || text.startsWith("/")) return;
+
+    const teamId = context.teamId ?? ("team" in event ? event.team : undefined);
+    if (!teamId) return;
+
+    try {
+      const { reply, worker } = await sendMessageToActiveWorker(
+        teamId,
+        event.user,
+        text
+      );
+      await postSlackText(client, event.channel, reply, { workerName: worker.name });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Something went wrong";
+      await postSlackText(client, event.channel, message, {
+        user: event.user,
+        ephemeral: true,
       });
     }
   });

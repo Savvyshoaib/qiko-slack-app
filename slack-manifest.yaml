@@ -46,7 +46,6 @@ oauth_config:
     - https://qiko-slack-app.onrender.com/slack/oauth_redirect
   scopes:
     bot:
-      - assistant:write
       - chat:write
       - commands
       - users:read
@@ -57,8 +56,6 @@ settings:
   event_subscriptions:
     request_url: https://qiko-slack-app.onrender.com/slack/events
     bot_events:
-      - assistant_thread_started
-      - assistant_thread_context_changed
       - message.im
   interactivity:
     is_enabled: true

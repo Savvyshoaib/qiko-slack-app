@@ -23,7 +23,12 @@ export type SlackStatusClient = {
 
 const ANCHORS_PATH = path.join(process.cwd(), "data", "slack-thread-anchors.json");
 
-const TYPING_STATUS = "typing...";
+const LOADING_MESSAGES = [
+  "Connecting to Qiko…",
+  "Loading your workers…",
+  "Thinking…",
+  "Preparing a reply…",
+];
 
 function readAnchors(): Record<string, string> {
   try {
@@ -87,8 +92,7 @@ export async function resolveStatusThreadTs(
   }
 }
 
-/** Composer typing indicator (below message box). Requires Agents & AI Apps on the Slack app. */
-export async function showTyping(
+export async function showQikoWorking(
   client: SlackStatusClient,
   channelId: string,
   threadTs: string
@@ -97,20 +101,17 @@ export async function showTyping(
     await client.assistant.threads.setStatus({
       channel_id: channelId,
       thread_ts: threadTs,
-      status: TYPING_STATUS,
+      status: "is thinking…",
+      loading_messages: LOADING_MESSAGES,
     });
     return true;
   } catch (error) {
-    const detail = error as { data?: { error?: string } };
-    console.warn(
-      "assistant.threads.setStatus (typing) failed:",
-      detail.data?.error ?? error
-    );
+    console.warn("assistant.threads.setStatus failed:", error);
     return false;
   }
 }
 
-export async function clearTyping(
+export async function clearQikoWorking(
   client: SlackStatusClient,
   channelId: string,
   threadTs: string
@@ -122,26 +123,6 @@ export async function clearTyping(
       status: "",
     });
   } catch {
-    // Cleared automatically when a reply is posted
-  }
-}
-
-/** Show typing under the composer during async work; always cleared in finally. */
-export async function withTypingIndicator(
-  client: unknown,
-  channelId: string,
-  threadTs: string | undefined,
-  work: () => Promise<void>
-): Promise<void> {
-  if (!threadTs) {
-    await work();
-    return;
-  }
-  const statusClient = client as SlackStatusClient;
-  await showTyping(statusClient, channelId, threadTs);
-  try {
-    await work();
-  } finally {
-    await clearTyping(statusClient, channelId, threadTs);
+    // Status may already be cleared by chat.postMessage
   }
 }
