@@ -101,7 +101,11 @@ export async function showTyping(
     });
     return true;
   } catch (error) {
-    console.warn("assistant.threads.setStatus (typing) failed:", error);
+    const detail = error as { data?: { error?: string } };
+    console.warn(
+      "assistant.threads.setStatus (typing) failed:",
+      detail.data?.error ?? error
+    );
     return false;
   }
 }
