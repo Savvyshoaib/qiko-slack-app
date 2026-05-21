@@ -1,3 +1,4 @@
+import { config } from "./config.js";
 import { postSlackText } from "./slackPost.js";
 
 const TYPING_PHRASES = [
@@ -8,7 +9,6 @@ const TYPING_PHRASES = [
   "Preparing Reply",
 ] as const;
 
-/** How often the status line cycles (ms). */
 const TYPING_INTERVAL_MS = 1800;
 
 type ChatClient = {
@@ -19,13 +19,40 @@ type ChatClient = {
   };
 };
 
-export type QikoChatResult = {
+export type TypingWorkResult = {
   content: string;
   workerName?: string;
+  /** Final reply only visible to the user who ran the command */
+  ephemeral?: boolean;
+  userId?: string;
 };
 
-function formatTypingLine(phrase: string): string {
-  return `_⏳ ${phrase}_`;
+function qikoAppImageUrl(): string {
+  return `${config.appUrl}/qiko-app.png`;
+}
+
+function typingMessagePayload(
+  channel: string,
+  phrase: string,
+  threadTs?: string
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    channel,
+    text: phrase,
+    blocks: [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `_${phrase}_` },
+        accessory: {
+          type: "image",
+          image_url: qikoAppImageUrl(),
+          alt_text: "Qiko",
+        },
+      },
+    ],
+  };
+  if (threadTs) payload.thread_ts = threadTs;
+  return payload;
 }
 
 function startTypingLoop(
@@ -38,33 +65,31 @@ function startTypingLoop(
 
   const timer = setInterval(() => {
     index = (index + 1) % TYPING_PHRASES.length;
-    const text = formatTypingLine(TYPING_PHRASES[index]);
-    void chat.update({ channel, ts: loadingTs, text }).catch(() => {
-      /* ignore rate limits / deleted message */
-    });
+    const phrase = TYPING_PHRASES[index];
+    void chat
+      .update(typingMessagePayload(channel, phrase, threadTs))
+      .catch(() => {
+        /* ignore rate limits / deleted message */
+      });
   }, TYPING_INTERVAL_MS);
 
   return () => clearInterval(timer);
 }
 
 /**
- * Rotating status message while Qiko API runs, then delete indicator and post reply.
+ * Rotating status + Qiko icon while async work runs; then final reply.
  */
 export async function withQikoTyping(
   client: unknown,
   channel: string,
   threadTs: string | undefined,
-  work: () => Promise<QikoChatResult>
+  work: () => Promise<TypingWorkResult>
 ): Promise<void> {
   const { chat } = client as ChatClient;
 
-  const loadingPayload: Record<string, unknown> = {
-    channel,
-    text: formatTypingLine(TYPING_PHRASES[0]),
-  };
-  if (threadTs) loadingPayload.thread_ts = threadTs;
-
-  const loading = await chat.postMessage(loadingPayload);
+  const loading = await chat.postMessage(
+    typingMessagePayload(channel, TYPING_PHRASES[0], threadTs)
+  );
   const loadingTs = loading.ts;
 
   let stopLoop = (): void => undefined;
@@ -82,15 +107,25 @@ export async function withQikoTyping(
         /* already gone */
       }
     }
-    await postSlackText(client, channel, result.content, {
-      workerName: result.workerName,
-      threadTs,
-    });
+
+    if (result.ephemeral && result.userId) {
+      await postSlackText(client, channel, result.content, {
+        user: result.userId,
+        ephemeral: true,
+        threadTs,
+        workerName: result.workerName,
+      });
+    } else {
+      await postSlackText(client, channel, result.content, {
+        workerName: result.workerName,
+        threadTs,
+      });
+    }
   } catch (error) {
     stopLoop();
     const msg = error instanceof Error ? error.message : "Something went wrong";
     if (loadingTs) {
-      await chat.update({ channel, ts: loadingTs, text: msg });
+      await chat.update({ channel, ts: loadingTs, text: msg, blocks: undefined });
     } else {
       throw error;
     }

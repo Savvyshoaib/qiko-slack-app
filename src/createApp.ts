@@ -22,6 +22,7 @@ import { resolvePostInstallRedirectUrl } from "./slackRedirect.js";
 
 const projectRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const logoFile = path.join(projectRoot, "qiko-logo.png");
+const appIconFile = path.join(projectRoot, "qiko-app.png");
 
 function attachPublicRoutes(receiver: ExpressReceiver, oauth: boolean): void {
   receiver.router.get("/qiko-logo.png", (_req, res) => {
@@ -32,6 +33,16 @@ function attachPublicRoutes(receiver: ExpressReceiver, oauth: boolean): void {
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=86400");
     fs.createReadStream(logoFile).pipe(res);
+  });
+
+  receiver.router.get("/qiko-app.png", (_req, res) => {
+    if (!fs.existsSync(appIconFile)) {
+      res.status(404).end("Not found");
+      return;
+    }
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    fs.createReadStream(appIconFile).pipe(res);
   });
 
   receiver.router.get("/", (_req, res) => {
