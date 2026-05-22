@@ -286,6 +286,33 @@ export function renderLandingHtml(): string {
       line-height: 1.45;
     }
 
+    .mention-card {
+      border-color: rgba(34, 211, 238, 0.28);
+      background: linear-gradient(145deg, rgba(99, 102, 241, 0.12), rgba(15, 23, 42, 0.65));
+    }
+
+    .mention-examples {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .mention-ex {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border);
+      font-family: ui-monospace, monospace;
+      font-size: 0.88rem;
+      color: #e2e8f0;
+    }
+
+    .mention-ex span {
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
     .tips {
       list-style: none;
       display: flex;
@@ -373,8 +400,9 @@ export function renderLandingHtml(): string {
     <section class="hero">
       <h1><span class="accent">Qikobot</span> for Slack</h1>
       <p class="hero-lead">
-        Connect your Slack workspace to Qiko. Each teammate signs in with their own account,
-        picks an AI worker, and chats in DMs or channels — same workers you use on
+        Connect your Slack workspace to Qiko. Sign in once, then mention
+        <strong style="color: var(--text)">@Qikobot</strong> in any channel — tables, lists, and answers
+        format cleanly in Slack. Same workers as
         <a href="${STAGE_SITE}" style="color: var(--cyan); text-decoration: none;">stage.qiko.ai</a>.
       </p>
       <div class="cta-row">
@@ -410,22 +438,35 @@ export function renderLandingHtml(): string {
         <li>
           <span class="step-num">4</span>
           <div class="step-body">
-            <strong>Choose a worker</strong>
-            <p><code>/qiko-workers</code> lists ready workers · <code>/qiko-worker &lt;name&gt;</code> sets the active one.</p>
+            <strong>Invite in channels</strong>
+            <p>In <code>#your-channel</code>, run <code>/invite @Qikobot</code> so mentions work there.</p>
           </div>
         </li>
         <li>
           <span class="step-num">5</span>
           <div class="step-body">
-            <strong>Chat</strong>
-            <p><code>/qiko-chat &lt;message&gt;</code> in a channel, or type directly in the Qikobot Messages tab.</p>
+            <strong>Talk to Qiko</strong>
+            <p>Mention <code>@Qikobot</code> with your question. Use <code>@Qikobot workers</code> or <code>@Qikobot worker 1</code> to switch workers.</p>
           </div>
         </li>
       </ol>
     </section>
 
+    <section class="card mention-card">
+      <h2>@Qikobot in channels</h2>
+      <p style="color: var(--muted); font-size: 0.92rem; margin-bottom: 16px;">
+        No long slash commands needed after login. Mention the bot like a teammate — replies use Slack-friendly tables and formatting.
+      </p>
+      <div class="mention-examples">
+        <div class="mention-ex"><span>@Qikobot</span> which expense is highest in February?</div>
+        <div class="mention-ex"><span>@Qikobot</span> workers</div>
+        <div class="mention-ex"><span>@Qikobot</span> worker Daniel Carter</div>
+        <div class="mention-ex"><span>@Qikobot</span> hi</div>
+      </div>
+    </section>
+
     <section class="card">
-      <h2>Slash commands</h2>
+      <h2>Slash commands (optional)</h2>
       <div class="cmd-grid">
         <div class="cmd">
           <div class="cmd-name">/qiko-login</div>
@@ -457,10 +498,10 @@ export function renderLandingHtml(): string {
     <section class="card">
       <h2>Tips</h2>
       <ul class="tips">
-        <li>In a <strong>channel</strong>, run <code>/invite @Qikobot</code> first if slash commands do not appear.</li>
-        <li>Use slash commands in the <strong>main channel composer</strong>, not inside a thread reply.</li>
-        <li>Create or manage workers in the <a href="${qikoApp}" style="color: var(--cyan);">Qiko web app</a>; Slack only chats with existing ready workers.</li>
-        <li>Replies appear in the channel or DM — not in a separate thread.</li>
+        <li><strong>First time only:</strong> <code>/qiko-login</code> — then use <code>@Qikobot</code> everywhere.</li>
+        <li>Tables and summaries from Qiko render as proper Slack tables (not raw markdown pipes).</li>
+        <li>Create or manage workers in the <a href="${qikoApp}" style="color: var(--cyan);">Qiko web app</a>; Slack chats with ready workers only.</li>
+        <li>DM the Qikobot <strong>Messages</strong> tab anytime without mentioning the bot.</li>
       </ul>
     </section>
 
@@ -508,8 +549,7 @@ export function renderInstallSuccessHtml(redirectUrl: string): string {
   <div class="box">
     <h1>Qikobot installed</h1>
     <p>In Slack: <strong>Apps</strong> → <strong>Qikobot</strong> → <strong>Messages</strong> tab to chat.</p>
-    <p>Run <code>/qiko-login</code> and sign in with your Qiko email and password.</p>
-    <p>In a channel: <code>/invite @Qikobot</code> first if commands need the bot in that channel.</p>
+    <p>Run <code>/qiko-login</code> once, then mention <code>@Qikobot</code> in channels (<code>/invite @Qikobot</code> first).</p>
     <p style="font-size:0.85rem">Use the same password as the Qiko web app (check for typos).</p>
     <div class="redirect">
       <p>Opening Slack in <span class="countdown" id="countdown">5</span> seconds…</p>
